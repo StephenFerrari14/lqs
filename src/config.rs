@@ -1,9 +1,9 @@
 use configparser::ini::Ini;
-use std::fs;
+use std::{fs, path::PathBuf};
 use std::collections::HashMap;
 
-const CONFIG_DIR: &'static str = ".lqs";
-const CONFIG_FILE_NAME: &'static str = "config";
+use crate::constants::{CONFIG_DIR, CONFIG_FILE_NAME};
+
 
 #[derive(Debug, Clone)]
 pub struct Connection {
@@ -34,14 +34,22 @@ impl Connection {
   }
 }
 
-pub fn create_config() {
+pub fn get_lqs_directory() -> PathBuf {
   let homedir = dirs::home_dir().unwrap_or_else(|| panic!("Cannot find home directory, create home directory to continue."));
   let mut lqs_dir = homedir.clone();
   lqs_dir.push(CONFIG_DIR);
+  return lqs_dir;
+}
 
-  let mut config_path = homedir.clone();
-  config_path.push(CONFIG_DIR);
-  config_path.push(CONFIG_FILE_NAME);
+pub fn get_config_file_path() -> PathBuf {
+  let mut dir = get_lqs_directory();
+  dir.push(CONFIG_FILE_NAME);
+  return dir;
+}
+
+pub fn create_config() {
+  let lqs_dir = get_lqs_directory();
+  let config_path = get_config_file_path();
 
   if !config_path.exists() {
     println!("Config does not exist. Creating...");
@@ -57,12 +65,31 @@ pub fn load() -> Result<HashMap<String, HashMap<String, Option<String>>>, String
   create_config();
 
   let mut config = Ini::new();
-  let homedir = dirs::home_dir().unwrap_or_else(|| panic!("Cannot find home directory, create home directory to continue."));
-  let mut config_path = homedir.clone();
-  config_path.push(CONFIG_DIR);
-  config_path.push(CONFIG_FILE_NAME);
+  let config_path = get_config_file_path();
 
   // TODO Model this
   let map = config.load(config_path);
   return map;
+}
+
+/// Validate database connection that is passed in
+pub fn validate_connection(connection: Option<String>) -> Result<String, &'static str> {
+  match connection {
+      Some(connection_value) => {
+          let connection_name = connection_value;
+          let config_loaded: Result<HashMap<String, HashMap<String, Option<String>>>, String> = load();
+          if config_loaded.is_ok() && config_loaded.unwrap().get(&connection_name) != None {
+              // Validate connection is the right struct
+              if Connection::from_config(connection_name.to_string()).name.is_empty() {
+                  return Err("Connection not found");
+              }
+              return Ok(connection_name.clone());
+          } else {
+              return Err("Connection not found");
+          }
+      }
+      None => {
+          return Err("--connection not set");
+      } 
+  }
 }

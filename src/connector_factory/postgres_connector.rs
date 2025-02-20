@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use futures::executor::block_on;
-use postgres::{NoTls, Row};
+use postgres::{Error, NoTls, Row};
 use tokio_postgres::Column;
 use chrono::Utc;
 use uuid::Uuid;
@@ -78,7 +78,7 @@ fn rows_to_map(rows: Vec<Row>) -> Vec<HashMap<String, String>> {
 }
 
 /// Async query Postgres with given connection configuration and query
-async fn query_async(config: Connection, query: String) {
+async fn query_async(config: Connection, query: String) -> Result<String, Error> {
     let host = config.host;
     let username = config.username;
     let password = config.password;
@@ -105,16 +105,23 @@ async fn query_async(config: Connection, query: String) {
                 Ok(rows) => {
                     let maps = rows_to_map(rows);
                     let display_rows = display_row::display_rows_from_maps(maps);
-                    display_row::render(display_rows)
+                    let render_result = display_row::render(display_rows);
+                    return Ok(render_result);
                 },
-                Err(e) => println!("Did not return results from query because of an error.\n{:?}", e)
+                Err(e) => {
+                    println!("Did not return results from query because of an error.\n{:?}", e);
+                    return Err(e);
+                }
             }
         },
-        Err(error) => eprintln!("connection error: {}", error)
+        Err(error) => {
+            eprintln!("connection error: {}", error);
+            return Err(error);
+        }
     }
 }
 
 /// Entry point for querying using Postgres connector
-pub fn query(config: Connection, query: String) {
+pub fn query(config: Connection, query: String) -> Result<String, postgres::Error> {
     block_on(query_async(config, query))
 }

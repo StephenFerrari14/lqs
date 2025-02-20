@@ -3,6 +3,7 @@ use pad::PadStr;
 
 const DIVIDER: &str = "|";
 
+#[derive(Debug)]
 pub struct DisplayRow {
     raw_row: HashMap<String, String>,
     // value_widths: HashMap<String, usize>,
@@ -32,7 +33,13 @@ impl DisplayRow {
 }
 
 /// Render display lines in result table
-pub fn render(display_rows: Vec<DisplayRow>) {
+pub fn render(display_rows: Vec<DisplayRow>) -> String {
+
+    if display_rows.len() == 0 {
+        println!("Query successful. No rows returned.");
+        return String::from("");
+    }
+
     let columns = get_column_row(&display_rows);
     let max_widths = get_max_widths(&display_rows, &columns);
 
@@ -53,6 +60,7 @@ pub fn render(display_rows: Vec<DisplayRow>) {
         + &render_rows
         + &first_line.clone();
     println!("{}", result_table);
+    return result_table;
 }
 
 /// Format data display line with dividers between values

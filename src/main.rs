@@ -1,11 +1,16 @@
-use std::collections::HashMap;
-use clap::{Parser, Subcommand};
-use config::Connection;
+use clap::{Parser, Subcommand, Args};
+use config::validate_connection;
+use query::{run_query, start_continuous_querying};
 
+mod constants;
 mod lqs;
 mod config;
 mod connector_factory;
 mod display_row;
+mod presentation;
+mod structs;
+mod query;
+
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -22,59 +27,43 @@ struct Cli {
     command: Option<Commands>,
 }
 
+#[derive(Args)]
+struct PrezSubCommands {
+    #[command(subcommand)]
+    commands: Option<PrezCommands>
+}
+
+#[derive(Args)]
+struct PrezCommandArgs {
+    name: String,
+
+    /// Connection from config file
+    #[arg(short, long)]
+    connection: Option<String>,
+}
+
+#[derive(Args)]
+struct PrezPlayArgs {
+    name: String,
+}
+
+#[derive(Subcommand)]
+enum PrezCommands {
+    /// Get list of presentations
+    List,
+    /// Record presentation
+    Record(PrezCommandArgs),
+    /// Play presentation
+    Play(PrezPlayArgs)
+}
+
+
 #[derive(Subcommand)]
 enum Commands {
     /// Initializes lqs cli
-    Init
-}
-
-/// Start mode to run query after query without rerunning program.
-fn start_continuous_querying(connection_name: String) {
-    let mut run = true;
-
-    let connection = Connection::from_config(connection_name);
-    println!("Connection configured for {}...", &connection.system);
-
-    while run {
-        let mut line = String::new();
-        println!("Type query: (press enter to submit)");
-        std::io::stdin().read_line(&mut line).unwrap();  
-        if line == String::from("exit\n") {
-            run = false;
-        } else {
-            // Load config outside of while loop?
-            connector_factory::submit(connection.clone(), line);
-        }
-    }
-}
-
-/// Run database query
-fn run_query(connection_name: String, query: String) {
-    let connection = Connection::from_config(connection_name);
-    println!("Connection configured for {}...", &connection.system);
-    connector_factory::submit(connection, query);
-}
-
-/// Validate database connection that is passed in
-fn validate_connection(connection: Option<String>) -> Result<String, &'static str> {
-    match connection {
-        Some(connection_value) => {
-            let connection_name = connection_value;
-            let config_loaded: Result<HashMap<String, HashMap<String, Option<String>>>, String> = config::load();
-            if config_loaded.is_ok() && config_loaded.unwrap().get(&connection_name) != None {
-                // Validate connection is the right struct
-                if Connection::from_config(connection_name.to_string()).name.is_empty() {
-                    return Err("Connection not found");
-                }
-                return Ok(connection_name.clone());
-            } else {
-                return Err("Connection not found");
-            }
-        }
-        None => {
-            return Err("--connection not set");
-        } 
-    }
+    Init,
+    /// Presentation Mode
+    Prez(PrezSubCommands)
 }
 
 #[tokio::main]
@@ -84,6 +73,29 @@ async fn main() {
     match &cli.command {
         Some(Commands::Init) => {
             config::create_config();
+        }
+        Some(Commands::Prez(subcommand)) => {
+            // Refactor command functions
+            match &subcommand.commands {
+                Some(PrezCommands::List) => {
+                    presentation::list();
+                },
+                Some(PrezCommands::Record(args)) => {
+                    match validate_connection(args.connection.clone()) {
+                        Ok(connection) => {
+                            presentation::record(connection, args.name.clone());
+                        },
+                        Err(e) => {
+                            println!("Error: {}. See --help", e);
+                            return;
+                        }
+                    }
+                },
+                Some(PrezCommands::Play(args)) => {
+                    presentation::play(args.name.clone());
+                },
+                None => todo!(),
+            }
         }
         None => {
             match validate_connection(cli.connection) {

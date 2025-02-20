@@ -1,7 +1,8 @@
 [package]
 name = "lqs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
+authors = ["Stephen Ferrari <stephen.ferrari14@gmail.com>"]
 
 [dependencies]
 clap = { version = "4.3.10", features = ["derive"] }
